@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Task Agent — Project Manager</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+:root {
+  --bg: #1a1d21; --sidebar-bg: #19171d; --chat-bg: #222529; --panel-bg: #1e2126;
+  --border: #35373b; --border-light: #4a4c50;
+  --text: #d1d2d3; --text-white: #f0f0f0; --text-muted: #9a9b9d; --text-dim: #6b6d70;
+  --accent: #1d9bd1; --green: #2bac76; --green-bg: rgba(43,172,118,0.12);
+  --amber: #e8912d; --amber-bg: rgba(232,145,45,0.12);
+  --red: #e54d42; --red-bg: rgba(229,77,66,0.12);
+  --purple: #7c5cfc; --purple-bg: rgba(124,92,252,0.08);
+  --blue-bg: rgba(29,155,209,0.08);
+  --hover: rgba(255,255,255,0.04);
+  --p1: #e54d42; --p2: #e8912d; --p3: #1d9bd1;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); height:100vh; display:flex; overflow:hidden; font-size:14px; }
+
+/* === LEFT SIDEBAR === */
+.sidebar { width:260px; background:var(--sidebar-bg); border-right:1px solid var(--border); display:flex; flex-direction:column; flex-shrink:0; }
+.sidebar-brand { padding:16px 20px; display:flex; align-items:center; gap:10px; border-bottom:1px solid var(--border); }
+.sidebar-brand .logo { width:28px; height:28px; background:var(--green); border-radius:6px; display:flex; align-items:center; justify-content:center; font-weight:700; color:#fff; font-size:12px; }
+.sidebar-brand .name { font-weight:700; font-size:15px; color:var(--text-white); }
+.sidebar-brand .sub { font-size:11px; color:var(--text-dim); }
+
+.sidebar-search { padding:10px 16px; }
+.sidebar-search input { width:100%; background:rgba(255,255,255,0.06); border:1px solid var(--border); color:var(--text); padding:7px 12px; border-radius:6px; font-size:13px; outline:none; }
+.sidebar-search input::placeholder { color:var(--text-dim); }
+.sidebar-search input:focus { border-color:var(--accent); }
+
+.sidebar-section { padding:8px 0; }
+.sidebar-section-title { padding:6px 20px; font-size:11px; font-weight:600; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.05em; }
+
+.channel-item { display:flex; align-items:center; gap:10px; padding:6px 20px; cursor:pointer; transition:background 0.15s; position:relative; }
+.channel-item:hover { background:var(--hover); }
+.channel-item.active { background:rgba(29,155,209,0.12); }
+.channel-item .ch-icon { width:28px; height:28px; border-radius:6px; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:700; color:#fff; flex-shrink:0; }
+.channel-item .ch-info { flex:1; min-width:0; }
+.channel-item .ch-name { font-size:13px; font-weight:500; color:var(--text-white); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.channel-item .ch-preview { font-size:11px; color:var(--text-dim); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.channel-item .ch-badge { background:var(--red); color:#fff; font-size:10px; font-weight:700; padding:1px 6px; border-radius:10px; }
+.channel-item .ch-tag { font-size:10px; padding:2px 6px; border-radius:4px; font-weight:500; }
+.channel-item .ch-tag.ops { background:var(--amber-bg); color:var(--amber); }
+.channel-item .ch-tag.team { background:var(--blue-bg); color:var(--accent); }
+
+.sidebar-bottom { margin-top:auto; border-top:1px solid var(--border); padding:12px 20px; }
+.user-profile { display:flex; align-items:center; gap:10px; }
+.user-profile .avatar { width:32px; height:32px; border-radius:6px; display:flex; align-items:center; justify-content:center; font-weight:700; color:#fff; font-size:13px; }
+.user-profile .uname { font-size:13px; font-weight:500; color:var(--text-white); }
+.user-profile .urole { font-size:11px; color:var(--text-dim); }
+
+/* === CHAT AREA === */
+.chat-area { flex:1; display:flex; flex-direction:column; background:var(--chat-bg); min-width:0; }
+
+.chat-header { padding:12px 24px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:12px; background:var(--panel-bg); }
+.chat-header .client-avatar { width:36px; height:36px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:700; color:#fff; font-size:15px; }
+.chat-header .header-info { flex:1; }
+.chat-header .header-title { font-size:15px; font-weight:600; color:var(--text-white); }
+.chat-header .header-members { font-size:12px; color:var(--text-dim); }
+.chat-header .header-status { font-size:12px; color:var(--text-muted); padding:6px 12px; background:rgba(255,255,255,0.04); border-radius:6px; }
+.chat-header .tasks-btn { background:var(--green); color:#fff; border:none; padding:6px 16px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer; }
+
+.messages { flex:1; overflow-y:auto; padding:16px 24px; display:flex; flex-direction:column; gap:2px; }
+
+.msg { display:flex; gap:10px; padding:8px 0; max-width:100%; }
+.msg .avatar { width:34px; height:34px; border-radius:6px; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-weight:700; color:#fff; font-size:12px; }
+.msg .body { flex:1; min-width:0; }
+.msg .name { font-weight:600; font-size:13px; color:var(--text-white); }
+.msg .name .tag { font-size:10px; font-weight:500; color:var(--text-dim); background:rgba(255,255,255,0.06); padding:1px 6px; border-radius:3px; margin-left:6px; }
+.msg .name .time { font-weight:400; font-size:11px; color:var(--text-dim); margin-left:8px; }
+.msg .text { font-size:14px; color:var(--text); line-height:1.55; margin-top:2px; white-space:pre-wrap; word-break:break-word; }
+.msg .text b { color:var(--text-white); }
+
+.msg.task-added-msg { background:var(--green-bg); border-radius:8px; padding:10px 12px; border-left:3px solid var(--green); margin:4px 0; }
+.msg.task-added-msg .text { color:var(--green); }
+.msg.agent-msg .text { color:var(--text); }
+
+.msg-input-area { padding:12px 24px; border-top:1px solid var(--border); background:var(--panel-bg); }
+.msg-input-row { display:flex; gap:8px; align-items:center; }
+.user-switcher { background:rgba(255,255,255,0.06); border:1px solid var(--border); color:var(--text); padding:9px 12px; border-radius:8px; font-size:13px; font-family:inherit; cursor:pointer; }
+.msg-input { flex:1; background:rgba(255,255,255,0.06); border:1px solid var(--border); color:var(--text); padding:9px 16px; border-radius:8px; font-size:14px; font-family:inherit; outline:none; }
+.msg-input:focus { border-color:var(--accent); }
+.msg-input::placeholder { color:var(--text-dim); }
+.send-btn { background:var(--green); color:#fff; border:none; padding:9px 20px; border-radius:8px; font-size:13px; font-weight:600; cursor:pointer; }
+.send-btn:hover { opacity:0.85; }
+.agent-note { font-size:11px; color:var(--text-dim); margin-top:8px; padding-left:4px; }
+
+/* === RIGHT PANEL === */
+.right-panel { width:320px; background:var(--panel-bg); border-left:1px solid var(--border); display:flex; flex-direction:column; flex-shrink:0; }
+.panel-tabs { display:flex; border-bottom:1px solid var(--border); }
+.panel-tab { flex:1; text-align:center; padding:12px; font-size:13px; font-weight:500; color:var(--text-dim); cursor:pointer; border-bottom:2px solid transparent; transition:all 0.2s; }
+.panel-tab.active { color:var(--text-white); border-bottom-color:var(--accent); }
+.panel-tab .count { background:rgba(255,255,255,0.08); padding:1px 7px; border-radius:10px; font-size:11px; margin-left:4px; }
+
+.panel-progress { padding:16px 20px; border-bottom:1px solid var(--border); }
+.progress-row { display:flex; justify-content:space-between; font-size:12px; margin-bottom:8px; }
+.progress-row .done-text { color:var(--text-muted); }
+.progress-row .deadline-text { color:var(--text-dim); }
+.progress-bar { height:6px; background:rgba(255,255,255,0.06); border-radius:3px; overflow:hidden; }
+.progress-bar .fill { height:100%; background:var(--green); border-radius:3px; transition:width 0.4s; }
+
+.panel-filters { display:flex; gap:4px; padding:12px 20px; border-bottom:1px solid var(--border); flex-wrap:wrap; }
+.filter-btn { padding:4px 12px; border-radius:100px; font-size:11px; font-weight:500; color:var(--text-dim); background:rgba(255,255,255,0.04); border:1px solid transparent; cursor:pointer; transition:all 0.2s; }
+.filter-btn.active { background:var(--text-white); color:var(--sidebar-bg); }
+.filter-btn:hover:not(.active) { border-color:var(--border-light); color:var(--text); }
+
+.panel-section { padding:12px 0; }
+.panel-section-title { padding:4px 20px 8px; font-size:11px; font-weight:600; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.05em; display:flex; justify-content:space-between; }
+.panel-section-title .count { color:var(--text-dim); }
+
+.task-list { overflow-y:auto; flex:1; }
+.task-card { display:flex; gap:10px; padding:10px 20px; cursor:pointer; transition:background 0.15s; border-bottom:1px solid rgba(255,255,255,0.03); }
+.task-card:hover { background:var(--hover); }
+.task-card .priority-dot { width:8px; height:8px; border-radius:50%; margin-top:5px; flex-shrink:0; }
+.task-card .priority-dot.p1 { background:var(--p1); }
+.task-card .priority-dot.p2 { background:var(--p2); }
+.task-card .priority-dot.p3 { background:var(--p3); }
+.task-card .task-info { flex:1; min-width:0; }
+.task-card .task-title { font-size:13px; font-weight:500; color:var(--text-white); margin-bottom:3px; }
+.task-card .task-meta { font-size:11px; color:var(--text-dim); display:flex; gap:6px; align-items:center; }
+.task-card .task-meta .assignee { color:var(--text-muted); }
+.task-card .status-tag { font-size:10px; padding:2px 8px; border-radius:100px; font-weight:500; flex-shrink:0; align-self:center; }
+.task-card .status-tag.up_next { background:var(--blue-bg); color:var(--accent); }
+.task-card .status-tag.in_progress { background:var(--amber-bg); color:var(--amber); }
+.task-card .status-tag.done { background:var(--green-bg); color:var(--green); }
+.task-card .status-tag.needs_answer { background:var(--red-bg); color:var(--red); }
+
+/* === MODALS === */
+.modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:100; display:none; align-items:center; justify-content:center; }
+.modal-overlay.show { display:flex; }
+.modal { background:var(--panel-bg); border:1px solid var(--border); border-radius:12px; width:420px; max-width:90vw; padding:24px; }
+.modal h3 { font-size:16px; font-weight:600; color:var(--text-white); margin-bottom:16px; }
+.modal label { display:block; font-size:12px; font-weight:500; color:var(--text-muted); margin-bottom:4px; margin-top:12px; }
+.modal input, .modal select, .modal textarea { width:100%; background:rgba(255,255,255,0.06); border:1px solid var(--border); color:var(--text); padding:9px 12px; border-radius:6px; font-size:13px; font-family:inherit; outline:none; }
+.modal input:focus, .modal select:focus { border-color:var(--accent); }
+.modal textarea { resize:vertical; min-height:60px; }
+.modal-actions { display:flex; gap:8px; justify-content:flex-end; margin-top:20px; }
+.modal-btn { padding:8px 20px; border-radius:6px; font-size:13px; font-weight:600; cursor:pointer; border:none; }
+.modal-btn.primary { background:var(--green); color:#fff; }
+.modal-btn.secondary { background:rgba(255,255,255,0.06); color:var(--text-muted); }
+.modal-btn:hover { opacity:0.85; }
+.modal .checkbox-list { max-height:160px; overflow-y:auto; margin-top:8px; }
+.modal .checkbox-item { display:flex; align-items:center; gap:8px; padding:6px 0; font-size:13px; color:var(--text); }
+.modal .checkbox-item input[type=checkbox] { accent-color:var(--accent); width:16px; height:16px; }
+
+/* === ADD BUTTONS === */
+.add-channel-btn { display:flex; align-items:center; gap:8px; padding:8px 20px; cursor:pointer; color:var(--text-dim); font-size:12px; font-weight:500; transition:all 0.2s; }
+.add-channel-btn:hover { color:var(--text); background:var(--hover); }
+.add-channel-btn .plus { font-size:16px; font-weight:400; }
+
+.add-people-btn { background:rgba(255,255,255,0.06); border:1px solid var(--border); color:var(--text-muted); padding:5px 12px; border-radius:6px; font-size:11px; font-weight:500; cursor:pointer; transition:all 0.2s; }
+.add-people-btn:hover { border-color:var(--accent); color:var(--text); }
+</style>
+</head>
+<body>
+
+<!-- LEFT SIDEBAR -->
+<div class="sidebar">
+  <div class="sidebar-brand">
+    <div class="logo">TA</div>
+    <div><div class="name">Task Agent</div><div class="sub">Project manager</div></div>
+  </div>
+  <div class="sidebar-search"><input type="text" placeholder="Search chats"></div>
+  <div class="sidebar-section">
+    <div id="channel-list"></div>
+    <div class="add-channel-btn" id="add-channel-btn"><span class="plus">+</span> New channel</div>
+  </div>
+  <div class="sidebar-bottom">
+    <div class="user-profile">
+      <div class="avatar" id="current-user-avatar" style="background:#6366f1">D</div>
+      <div><div class="uname" id="current-user-name">Denish</div><div class="urole">Admin</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- CHAT AREA -->
+<div class="chat-area">
+  <div class="chat-header">
+    <div class="client-avatar" id="header-avatar" style="background:#10b981">A</div>
+    <div class="header-info">
+      <div class="header-title" id="header-title">Alleraid</div>
+      <div class="header-members" id="header-members">Loading...</div>
+    </div>
+    <div class="header-status" id="header-status"></div>
+    <button class="add-people-btn" id="manage-people-btn">+ People</button>
+  </div>
+
+  <div class="messages" id="messages"></div>
+
+  <div class="msg-input-area">
+    <div class="msg-input-row">
+      <select class="user-switcher" id="user-select"></select>
+      <input class="msg-input" id="msg-input" placeholder="Message..." autocomplete="off">
+      <button class="send-btn" id="send-btn">Send</button>
+    </div>
+    <div class="agent-note">⚡ Every message is checked by the agent. It picks up tasks, deadlines, and status updates.</div>
+  </div>
+</div>
+
+<!-- RIGHT PANEL -->
+<div class="right-panel">
+  <div class="panel-tabs">
+    <div class="panel-tab active">Tasks <span class="count" id="task-count">0</span></div>
+    <div class="panel-tab">Knowledge</div>
+    <div class="panel-tab">People</div>
+  </div>
+
+  <div class="panel-progress">
+    <div class="progress-row">
+      <span class="done-text" id="progress-text">0/0 done</span>
+      <span class="deadline-text" id="deadline-text"></span>
+    </div>
+    <div class="progress-bar"><div class="fill" id="progress-fill" style="width:0%"></div></div>
+  </div>
+
+  <div class="panel-filters">
+    <div class="filter-btn active" data-filter="all">All</div>
+    <div class="filter-btn" data-filter="mine">Mine</div>
+    <div class="filter-btn" data-filter="P1">P1</div>
+    <div class="filter-btn" data-filter="needs_input">Needs input</div>
+  </div>
+
+  <div class="task-list" id="task-list"></div>
+</div>
+
+<!-- CREATE CHANNEL MODAL -->
+<div class="modal-overlay" id="channel-modal">
+  <div class="modal">
+    <h3>Create Channel</h3>
+    <label>Channel Name</label>
+    <input type="text" id="ch-name" placeholder="e.g. Alleraid, Ops, Design">
+    <label>Description</label>
+    <textarea id="ch-desc" placeholder="What is this channel for?"></textarea>
+    <label>Type</label>
+    <select id="ch-type">
+      <option value="project">Project</option>
+      <option value="ops">Ops</option>
+      <option value="team">Team</option>
+    </select>
+    <label>Client Name (optional)</label>
+    <input type="text" id="ch-client" placeholder="e.g. Ashok">
+    <label>Add Members</label>
+    <div class="checkbox-list" id="ch-members"></div>
+    <div class="modal-actions">
+      <button class="modal-btn secondary" onclick="closeModal('channel-modal')">Cancel</button>
+      <button class="modal-btn primary" id="create-channel-btn">Create</button>
+    </div>
+  </div>
+</div>
+
+<!-- MANAGE PEOPLE MODAL -->
+<div class="modal-overlay" id="people-modal">
+  <div class="modal">
+    <h3>Manage People — <span id="people-modal-channel"></span></h3>
+    <div id="people-current-members"></div>
+    <div style="margin-top:16px;border-top:1px solid var(--border);padding-top:16px;">
+      <label>Add New Person</label>
+      <div style="display:flex;gap:8px;margin-top:4px;">
+        <input type="text" id="new-person-name" placeholder="Name" style="flex:1;">
+        <select id="new-person-role" style="width:100px;">
+          <option value="member">Member</option>
+          <option value="client">Client</option>
+          <option value="admin">Admin</option>
+        </select>
+        <button class="modal-btn primary" id="add-person-btn" style="white-space:nowrap;">Add</button>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="modal-btn secondary" onclick="closeModal('people-modal')">Close</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let currentChannel = 'alleraid';
+let currentUser = 'denish';
+let channels = [];
+let users = {};
+let allTasks = [];
+
+const msgsDiv = document.getElementById('messages');
+const input = document.getElementById('msg-input');
+const userSelect = document.getElementById('user-select');
+
+function getTime() {
+  const d = new Date();
+  return d.getHours().toString().padStart(2,'0') + ':' + d.getMinutes().toString().padStart(2,'0');
+}
+
+// --- API ---
+async function api(path, opts) {
+  const r = await fetch(path, opts);
+  return r.json();
+}
+
+// --- Init ---
+async function init() {
+  const [usersData, channelsData] = await Promise.all([
+    api('/api/users'), api('/api/channels')
+  ]);
+
+  usersData.forEach(u => users[u.id] = u);
+  channels = channelsData;
+
+  // Populate user switcher
+  userSelect.innerHTML = usersData.filter(u => u.role !== 'bot').map(u =>
+    `<option value="${u.id}" ${u.id === currentUser ? 'selected' : ''}>${u.name}</option>`
+  ).join('');
+
+  renderChannels();
+  switchChannel(currentChannel);
+}
+
+function renderChannels() {
+  const list = document.getElementById('channel-list');
+  const tags = { ops: '<span class="ch-tag ops">ops · PM</span>', team: '<span class="ch-tag team">team</span>' };
+
+  list.innerHTML = channels.map(ch => `
+    <div class="channel-item ${ch.id === currentChannel ? 'active' : ''}" data-id="${ch.id}">
+      <div class="ch-icon" style="background:${ch.id === 'alleraid' ? '#10b981' : ch.id === 'ops' ? '#e8912d' : '#1d9bd1'}">${ch.name[0]}</div>
+      <div class="ch-info">
+        <div class="ch-name">${ch.name}</div>
+        <div class="ch-preview">${ch.description || ''}</div>
+      </div>
+      ${tags[ch.channel_type] || ''}
+    </div>
+  `).join('');
+
+  list.querySelectorAll('.channel-item').forEach(el => {
+    el.addEventListener('click', () => switchChannel(el.dataset.id));
+  });
+}
+
+async function switchChannel(channelId) {
+  currentChannel = channelId;
+  const ch = channels.find(c => c.id === channelId);
+
+  // Update header
+  document.getElementById('header-title').textContent = ch.name;
+  const members = (ch.members || '').split(',').filter(m => m !== 'agent').map(m => users[m]?.name || m);
+  document.getElementById('header-members').textContent = members.join(', ');
+  document.getElementById('header-avatar').textContent = ch.name[0];
+
+  // Highlight sidebar
+  document.querySelectorAll('.channel-item').forEach(el => {
+    el.classList.toggle('active', el.dataset.id === channelId);
+  });
+
+  await Promise.all([loadMessages(), loadTasks()]);
+}
+
+async function loadMessages() {
+  const msgs = await api(`/api/channels/${currentChannel}/messages`);
+  msgsDiv.innerHTML = '';
+
+  // Welcome message
+  addMsgToDOM('agent', "Hey team! I'm your task agent. Talk naturally — I'll pick up tasks, deadlines, and status updates from your conversation.", 'agent', '');
+
+  msgs.forEach(m => {
+    addMsgToDOM(m.user_id, m.text, m.msg_type, m.created_at);
+  });
+  msgsDiv.scrollTop = msgsDiv.scrollHeight;
+}
+
+function addMsgToDOM(userId, text, msgType, timestamp) {
+  const user = users[userId] || { name: userId, avatar_color: '#666' };
+  const isBot = userId === 'agent';
+  const div = document.createElement('div');
+
+  let cls = 'msg';
+  if (msgType === 'task_added') cls += ' task-added-msg';
+  else if (isBot || msgType === 'agent') cls += ' agent-msg';
+  div.className = cls;
+
+  const tag = isBot ? '<span class="tag">BOT</span>' : '';
+  const time = timestamp ? new Date(timestamp + 'Z').toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : getTime();
+  const initial = isBot ? '🤖' : user.name[0].toUpperCase();
+  const bgColor = isBot ? '#8b5cf6' : user.avatar_color;
+
+  let formatted = text.replace(/\*([^*]+)\*/g, '<b>$1</b>').replace(/\n/g, '<br>');
+
+  div.innerHTML = `
+    <div class="avatar" style="background:${bgColor}">${initial}</div>
+    <div class="body">
+      <div class="name">${user.name} ${tag} <span class="time">${time}</span></div>
+      <div class="text">${formatted}</div>
+    </div>`;
+  msgsDiv.appendChild(div);
+  msgsDiv.scrollTop = msgsDiv.scrollHeight;
+}
+
+async function loadTasks() {
+  allTasks = await api(`/api/channels/${currentChannel}/tasks`);
+  const stats = await api(`/api/channels/${currentChannel}/stats`);
+
+  document.getElementById('task-count').textContent = allTasks.length;
+  document.getElementById('progress-text').textContent = `${stats.done}/${stats.total} done`;
+
+  const pct = stats.total > 0 ? Math.round((stats.done / stats.total) * 100) : 0;
+  document.getElementById('progress-fill').style.width = pct + '%';
+
+  const statusLabel = { up_next: 'Up next', in_progress: 'In progress', done: 'Done' };
+  document.getElementById('header-status').textContent = `${allTasks.filter(t=>t.status!=='done').length} open tasks`;
+
+  renderTasks(allTasks);
+}
+
+function renderTasks(tasks) {
+  const list = document.getElementById('task-list');
+  const grouped = { up_next: [], in_progress: [], done: [] };
+  tasks.forEach(t => {
+    if (grouped[t.status]) grouped[t.status].push(t);
+    else grouped['up_next'].push(t);
+  });
+
+  const labels = { up_next: 'Up Next', in_progress: 'In Progress', done: 'Done' };
+  let html = '';
+
+  for (const [status, items] of Object.entries(grouped)) {
+    if (items.length === 0) continue;
+    html += `<div class="panel-section">
+      <div class="panel-section-title">${labels[status]} <span class="count">${items.length}</span></div>`;
+    items.forEach(t => {
+      const assignee = users[t.assignee]?.name || t.assignee || 'Unassigned';
+      const deadline = t.deadline ? `Due ${t.deadline.slice(5)}` : '';
+      html += `
+        <div class="task-card" data-id="${t.id}">
+          <div class="priority-dot ${t.priority.toLowerCase()}"></div>
+          <div class="task-info">
+            <div class="task-title">${t.title}</div>
+            <div class="task-meta">
+              <span>T-${t.id}</span> · <span>${deadline}</span> · <span class="assignee">${assignee}</span>
+            </div>
+          </div>
+          <div class="status-tag ${t.status}">${labels[status]} →</div>
+        </div>`;
+    });
+    html += '</div>';
+  }
+
+  list.innerHTML = html || '<div style="padding:20px;color:var(--text-dim);text-align:center;font-size:13px;">No tasks yet. Start chatting!</div>';
+
+  // Click to cycle status
+  list.querySelectorAll('.task-card').forEach(el => {
+    el.addEventListener('click', async () => {
+      const id = el.dataset.id;
+      const task = allTasks.find(t => t.id == id);
+      if (!task) return;
+      const next = { up_next: 'in_progress', in_progress: 'done', done: 'up_next' };
+      await api('/api/tasks/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ task_id: parseInt(id), status: next[task.status] })
+      });
+      await loadTasks();
+    });
+  });
+}
+
+// Filters
+document.querySelectorAll('.filter-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const filter = btn.dataset.filter;
+    if (filter === 'all') renderTasks(allTasks);
+    else if (filter === 'mine') renderTasks(allTasks.filter(t => t.assignee === currentUser));
+    else if (filter === 'P1') renderTasks(allTasks.filter(t => t.priority === 'P1'));
+    else renderTasks(allTasks);
+  });
+});
+
+// Send
+async function sendMessage() {
+  const text = input.value.trim();
+  if (!text) return;
+  currentUser = userSelect.value;
+  input.value = '';
+
+  addMsgToDOM(currentUser, text, 'user', '');
+
+  const data = await api('/api/message', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ channel_id: currentChannel, user_id: currentUser, text })
+  });
+
+  if (data.agent_responses) {
+    data.agent_responses.forEach(r => {
+      setTimeout(() => addMsgToDOM('agent', r.text, r.msg_type, ''), 400);
+    });
+  }
+
+  setTimeout(loadTasks, 600);
+}
+
+input.addEventListener('keydown', e => { if (e.key === 'Enter') sendMessage(); });
+document.getElementById('send-btn').addEventListener('click', sendMessage);
+userSelect.addEventListener('change', () => {
+  currentUser = userSelect.value;
+  const u = users[currentUser];
+  if (u) {
+    document.getElementById('current-user-avatar').textContent = u.name[0];
+    document.getElementById('current-user-avatar').style.background = u.avatar_color;
+    document.getElementById('current-user-name').textContent = u.name;
+  }
+});
+
+// --- Modals ---
+function openModal(id) { document.getElementById(id).classList.add('show'); }
+function closeModal(id) { document.getElementById(id).classList.remove('show'); }
+
+// Close modal on overlay click
+document.querySelectorAll('.modal-overlay').forEach(el => {
+  el.addEventListener('click', e => { if (e.target === el) el.classList.remove('show'); });
+});
+
+// CREATE CHANNEL
+document.getElementById('add-channel-btn').addEventListener('click', () => {
+  const list = document.getElementById('ch-members');
+  const allUsers = Object.values(users);
+  list.innerHTML = allUsers.map(u => `
+    <label class="checkbox-item">
+      <input type="checkbox" value="${u.id}" checked> ${u.name} <span style="color:var(--text-dim);font-size:11px;">(${u.role})</span>
+    </label>
+  `).join('');
+  document.getElementById('ch-name').value = '';
+  document.getElementById('ch-desc').value = '';
+  document.getElementById('ch-client').value = '';
+  openModal('channel-modal');
+});
+
+document.getElementById('create-channel-btn').addEventListener('click', async () => {
+  const name = document.getElementById('ch-name').value.trim();
+  if (!name) return;
+  const desc = document.getElementById('ch-desc').value.trim();
+  const type = document.getElementById('ch-type').value;
+  const client = document.getElementById('ch-client').value.trim();
+  const checked = document.querySelectorAll('#ch-members input:checked');
+  const memberIds = Array.from(checked).map(c => c.value);
+
+  const ch = await api('/api/channels/create', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, description: desc, channel_type: type, client_name: client || null, members: memberIds })
+  });
+
+  channels.push(ch);
+  renderChannels();
+  closeModal('channel-modal');
+  switchChannel(ch.id);
+});
+
+// MANAGE PEOPLE
+document.getElementById('manage-people-btn').addEventListener('click', () => {
+  const ch = channels.find(c => c.id === currentChannel);
+  document.getElementById('people-modal-channel').textContent = ch.name;
+  renderPeopleList();
+  openModal('people-modal');
+});
+
+function renderPeopleList() {
+  const ch = channels.find(c => c.id === currentChannel);
+  const memberIds = (ch.members || '').split(',').filter(m => m && m !== 'agent');
+  const allUsers = Object.values(users);
+  const container = document.getElementById('people-current-members');
+
+  container.innerHTML = '<label>Current Members</label>' + allUsers.map(u => {
+    const isMember = memberIds.includes(u.id);
+    return `<label class="checkbox-item">
+      <input type="checkbox" ${isMember ? 'checked' : ''} data-uid="${u.id}" class="member-toggle">
+      ${u.name} <span style="color:var(--text-dim);font-size:11px;">(${u.role})</span>
+    </label>`;
+  }).join('');
+
+  container.querySelectorAll('.member-toggle').forEach(cb => {
+    cb.addEventListener('change', async () => {
+      const uid = cb.dataset.uid;
+      const endpoint = cb.checked ? '/api/channels/add-member' : '/api/channels/remove-member';
+      const updated = await api(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ channel_id: currentChannel, user_id: uid })
+      });
+      // Update local channel data
+      const idx = channels.findIndex(c => c.id === currentChannel);
+      if (idx >= 0) channels[idx] = updated;
+      // Refresh header
+      const members = (updated.members || '').split(',').filter(m => m !== 'agent').map(m => users[m]?.name || m);
+      document.getElementById('header-members').textContent = members.join(', ');
+      // Refresh user select
+      const memberIds = (updated.members || '').split(',').filter(m => m && m !== 'agent');
+      userSelect.innerHTML = memberIds.map(m => {
+        const u = users[m];
+        return u ? `<option value="${u.id}" ${u.id === currentUser ? 'selected' : ''}>${u.name}</option>` : '';
+      }).join('');
+    });
+  });
+}
+
+// ADD NEW PERSON
+document.getElementById('add-person-btn').addEventListener('click', async () => {
+  const name = document.getElementById('new-person-name').value.trim();
+  if (!name) return;
+  const role = document.getElementById('new-person-role').value;
+  const id = name.toLowerCase().replace(/\s+/g, '');
+
+  const user = await api('/api/users/create', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id, name, role })
+  });
+
+  users[user.id] = user;
+  document.getElementById('new-person-name').value = '';
+
+  // Auto-add to current channel
+  await api('/api/channels/add-member', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ channel_id: currentChannel, user_id: user.id })
+  });
+
+  // Refresh
+  channels = await api('/api/channels');
+  renderPeopleList();
+  await switchChannel(currentChannel);
+});
+
+init();
+</script>
+</body>
+</html>
