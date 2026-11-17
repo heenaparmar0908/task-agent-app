@@ -71,6 +71,17 @@ def init_db():
             sent_at TEXT DEFAULT (datetime('now')),
             UNIQUE(task_id, type)
         );
+
+        CREATE TABLE IF NOT EXISTS files (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            channel_id TEXT REFERENCES channels(id),
+            user_id TEXT REFERENCES users(id),
+            filename TEXT NOT NULL,
+            stored_name TEXT NOT NULL,
+            file_size INTEGER DEFAULT 0,
+            mime_type TEXT DEFAULT 'application/octet-stream',
+            created_at TEXT DEFAULT (datetime('now'))
+        );
     """)
     conn.commit()
 
@@ -219,3 +230,23 @@ def get_task_stats(channel_id):
     total = conn.execute("SELECT COUNT(*) as c FROM tasks WHERE channel_id = ?", (channel_id,)).fetchone()["c"]
     done = conn.execute("SELECT COUNT(*) as c FROM tasks WHERE channel_id = ? AND status = 'done'", (channel_id,)).fetchone()["c"]
     return {"total": total, "done": done}
+
+# --- Files ---
+def add_file(channel_id, user_id, filename, stored_name, file_size, mime_type):
+    conn = get_conn()
+    cur = conn.execute(
+        "INSERT INTO files (channel_id, user_id, filename, stored_name, file_size, mime_type) VALUES (?,?,?,?,?,?)",
+        (channel_id, user_id, filename, stored_name, file_size, mime_type)
+    )
+    conn.commit()
+    return cur.lastrowid
+
+def get_file(file_id):
+    row = get_conn().execute("SELECT * FROM files WHERE id = ?", (file_id,)).fetchone()
+    return dict(row) if row else None
+
+def get_channel_files(channel_id):
+    rows = get_conn().execute(
+        "SELECT * FROM files WHERE channel_id = ? ORDER BY created_at DESC", (channel_id,)
+    ).fetchall()
+    return [dict(r) for r in rows]

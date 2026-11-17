@@ -155,9 +155,33 @@ body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); 
 
 .add-people-btn { background:rgba(255,255,255,0.06); border:1px solid var(--border); color:var(--text-muted); padding:5px 12px; border-radius:6px; font-size:11px; font-weight:500; cursor:pointer; transition:all 0.2s; }
 .add-people-btn:hover { border-color:var(--accent); color:var(--text); }
+
+/* FILE MESSAGES */
+.msg .file-preview { margin-top:8px; max-width:360px; }
+.msg .file-preview img { max-width:100%; max-height:300px; border-radius:8px; border:1px solid var(--border); cursor:pointer; }
+.msg .file-card { display:flex; align-items:center; gap:10px; padding:10px 14px; background:rgba(255,255,255,0.04); border:1px solid var(--border); border-radius:8px; margin-top:8px; max-width:320px; text-decoration:none; transition:background 0.15s; }
+.msg .file-card:hover { background:rgba(255,255,255,0.08); }
+.msg .file-card .file-icon { font-size:24px; flex-shrink:0; }
+.msg .file-card .file-info { flex:1; min-width:0; }
+.msg .file-card .file-name { font-size:13px; font-weight:500; color:var(--accent); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.msg .file-card .file-size { font-size:11px; color:var(--text-dim); }
+.upload-btn { background:none; border:1px solid var(--border); color:var(--text-muted); width:38px; height:38px; border-radius:8px; cursor:pointer; font-size:18px; display:flex; align-items:center; justify-content:center; transition:all 0.2s; flex-shrink:0; }
+.upload-btn:hover { border-color:var(--accent); color:var(--text-white); }
+.toast-box { position:fixed; bottom:24px; right:24px; z-index:9999; display:flex; flex-direction:column-reverse; gap:8px; pointer-events:none; }
+.toast { background:var(--panel-bg); border:1px solid var(--border); border-left:3px solid var(--green); border-radius:8px; padding:12px 16px; color:var(--text-white); font-size:13px; box-shadow:0 4px 16px rgba(0,0,0,0.3); animation:toastIn 0.3s ease; pointer-events:auto; max-width:340px; }
+.toast.info { border-left-color:var(--accent); } .toast.warning { border-left-color:var(--amber); } .toast.error { border-left-color:var(--red); }
+.toast .toast-title { font-weight:600; margin-bottom:2px; }
+.toast .toast-body { color:var(--text-muted); font-size:12px; }
+@keyframes toastIn { from{transform:translateX(100%);opacity:0} to{transform:translateX(0);opacity:1} }
+.notif-bell { position:relative; background:none; border:1px solid var(--border); color:var(--text-muted); width:36px; height:36px; border-radius:8px; cursor:pointer; font-size:16px; display:flex; align-items:center; justify-content:center; transition:all 0.2s; }
+.notif-bell:hover { border-color:var(--accent); color:var(--text-white); }
+.notif-badge { position:absolute; top:-4px; right:-4px; background:var(--red); color:#fff; font-size:9px; font-weight:700; min-width:16px; height:16px; border-radius:8px; display:none; align-items:center; justify-content:center; padding:0 4px; }
+.notif-badge.show { display:flex; }
+.drag-over { outline:2px dashed var(--accent) !important; outline-offset:-2px; }
 </style>
 </head>
 <body>
+<div class="toast-box" id="toast-box"></div>
 
 <!-- LEFT SIDEBAR -->
 <div class="sidebar">
@@ -187,6 +211,7 @@ body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); 
       <div class="header-members" id="header-members">Loading...</div>
     </div>
     <div class="header-status" id="header-status"></div>
+    <button class="notif-bell" id="notif-bell" title="Notifications">🔔<span class="notif-badge" id="notif-badge">0</span></button>
     <button class="add-people-btn" id="manage-people-btn">+ People</button>
   </div>
 
@@ -196,9 +221,11 @@ body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); 
     <div class="msg-input-row">
       <select class="user-switcher" id="user-select"></select>
       <input class="msg-input" id="msg-input" placeholder="Message..." autocomplete="off">
+      <input type="file" id="file-input" style="display:none" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.zip,.txt,.csv">
+      <button class="upload-btn" id="upload-btn" title="Upload file">📎</button>
       <button class="send-btn" id="send-btn">Send</button>
     </div>
-    <div class="agent-note">⚡ Every message is checked by the agent. It picks up tasks, deadlines, and status updates.</div>
+    <div class="agent-note">⚡ Every message is checked by the agent. 📎 Drag & drop or click 📎 to upload files.</div>
   </div>
 </div>
 
@@ -367,6 +394,12 @@ async function loadMessages() {
   msgsDiv.scrollTop = msgsDiv.scrollHeight;
 }
 
+function formatFileSize(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / 1048576).toFixed(1) + ' MB';
+}
+
 function addMsgToDOM(userId, text, msgType, timestamp) {
   const user = users[userId] || { name: userId, avatar_color: '#666' };
   const isBot = userId === 'agent';
@@ -382,13 +415,31 @@ function addMsgToDOM(userId, text, msgType, timestamp) {
   const initial = isBot ? '🤖' : user.name[0].toUpperCase();
   const bgColor = isBot ? '#8b5cf6' : user.avatar_color;
 
-  let formatted = text.replace(/\*([^*]+)\*/g, '<b>$1</b>').replace(/\n/g, '<br>');
+  let contentHtml = '';
+  if (msgType === 'file') {
+    try {
+      const f = JSON.parse(text);
+      const isImage = f.type && f.type.startsWith('image/');
+      if (isImage) {
+        contentHtml = `<div class="file-preview"><img src="${f.url}" alt="${f.filename}" onclick="window.open('${f.url}','_blank')"></div>
+          <div style="font-size:11px;color:var(--text-dim);margin-top:4px;">${f.filename} · ${formatFileSize(f.size)}</div>`;
+      } else {
+        const icon = f.type && f.type.includes('pdf') ? '📄' : '📁';
+        contentHtml = `<a class="file-card" href="${f.url}" target="_blank" download="${f.filename}">
+          <span class="file-icon">${icon}</span>
+          <div class="file-info"><div class="file-name">${f.filename}</div><div class="file-size">${formatFileSize(f.size)}</div></div>
+        </a>`;
+      }
+    } catch (e) { contentHtml = `<div class="text">${text}</div>`; }
+  } else {
+    contentHtml = `<div class="text">${text.replace(/\*([^*]+)\*/g, '<b>$1</b>').replace(/\n/g, '<br>')}</div>`;
+  }
 
   div.innerHTML = `
     <div class="avatar" style="background:${bgColor}">${initial}</div>
     <div class="body">
       <div class="name">${user.name} ${tag} <span class="time">${time}</span></div>
-      <div class="text">${formatted}</div>
+      ${contentHtml}
     </div>`;
   msgsDiv.appendChild(div);
   msgsDiv.scrollTop = msgsDiv.scrollHeight;
@@ -492,7 +543,16 @@ async function sendMessage() {
 
   if (data.agent_responses) {
     data.agent_responses.forEach(r => {
-      setTimeout(() => addMsgToDOM('agent', r.text, r.msg_type, ''), 400);
+      setTimeout(() => {
+        addMsgToDOM('agent', r.text, r.msg_type, '');
+        const plain = r.text.replace(/\*([^*]+)\*/g, '$1').split('\n')[0];
+        if (r.msg_type === 'task_added') {
+          showToast('Task Created', plain, 'success');
+          showBrowserNotif('Task Agent', plain);
+        } else {
+          showToast('Agent', plain, 'info');
+        }
+      }, 400);
     });
   }
 
@@ -632,6 +692,87 @@ document.getElementById('add-person-btn').addEventListener('click', async () => 
   await switchChannel(currentChannel);
 });
 
+// --- Toast Notifications ---
+function showToast(title, body, type) {
+  type = type || 'info';
+  const t = document.createElement('div');
+  t.className = 'toast ' + type;
+  t.innerHTML = '<div class="toast-title">' + title + '</div>' + (body ? '<div class="toast-body">' + body + '</div>' : '');
+  document.getElementById('toast-box').appendChild(t);
+  setTimeout(() => { t.style.opacity = '0'; t.style.transform = 'translateX(100%)'; t.style.transition = 'all 0.3s'; setTimeout(() => t.remove(), 300); }, 4000);
+}
+
+// --- Browser Notifications ---
+let notifCount = 0;
+function requestNotifPermission() {
+  if ('Notification' in window && Notification.permission === 'default') {
+    Notification.requestPermission();
+  }
+}
+function showBrowserNotif(title, body) {
+  if ('Notification' in window && Notification.permission === 'granted') {
+    new Notification(title, { body: body });
+  }
+  notifCount++;
+  const badge = document.getElementById('notif-badge');
+  badge.textContent = notifCount;
+  badge.classList.add('show');
+}
+document.getElementById('notif-bell').addEventListener('click', () => {
+  notifCount = 0;
+  document.getElementById('notif-badge').classList.remove('show');
+  showToast('Notifications', 'All caught up!', 'info');
+});
+
+// --- File Upload ---
+document.getElementById('upload-btn').addEventListener('click', () => {
+  document.getElementById('file-input').click();
+});
+document.getElementById('file-input').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  if (file.size > 10 * 1024 * 1024) {
+    showToast('Upload failed', 'File too large (max 10MB)', 'error');
+    return;
+  }
+  currentUser = userSelect.value;
+  const form = new FormData();
+  form.append('file', file);
+  form.append('channel_id', currentChannel);
+  form.append('user_id', currentUser);
+  showToast('Uploading...', file.name, 'info');
+  try {
+    const res = await fetch('/api/upload', { method: 'POST', body: form });
+    const data = await res.json();
+    if (data.error) {
+      showToast('Upload failed', data.error, 'error');
+    } else {
+      const fileInfo = JSON.stringify({ file_id: data.file_id, filename: data.filename, url: data.url, size: data.size, type: data.type });
+      addMsgToDOM(currentUser, fileInfo, 'file', '');
+      showToast('File uploaded', data.filename, 'success');
+      showBrowserNotif('File uploaded', data.filename);
+    }
+  } catch (err) {
+    showToast('Upload failed', 'Network error', 'error');
+  }
+  e.target.value = '';
+});
+
+// --- Drag & Drop ---
+msgsDiv.addEventListener('dragover', (e) => { e.preventDefault(); msgsDiv.classList.add('drag-over'); });
+msgsDiv.addEventListener('dragleave', () => { msgsDiv.classList.remove('drag-over'); });
+msgsDiv.addEventListener('drop', (e) => {
+  e.preventDefault();
+  msgsDiv.classList.remove('drag-over');
+  if (e.dataTransfer.files.length) {
+    const dt = new DataTransfer();
+    dt.items.add(e.dataTransfer.files[0]);
+    document.getElementById('file-input').files = dt.files;
+    document.getElementById('file-input').dispatchEvent(new Event('change'));
+  }
+});
+
+requestNotifPermission();
 init();
 </script>
 </body>
